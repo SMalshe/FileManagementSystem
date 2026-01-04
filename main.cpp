@@ -20,7 +20,8 @@ void printMainMenu() {
     cout << "  1. Intuitive Mode (Easy Commands)\n";
     cout << "  2. CLI Learning Mode (Learn Unix)\n";
     cout << "  3. Full CLI Mode (Real Unix Commands)\n";
-    cout << "  4. Exit\n\n";
+    cout << "  4. GUI Mode (Open Tree in Browser)\n";
+    cout << "  5. Exit\n\n";
 }
 
 /**
@@ -41,8 +42,7 @@ void printCommandMenu() {
     cout << "  findfile [name]    - Search for file by name\n";
     cout << "  details [name]     - Show file details\n";
     cout << "  where              - Show current directory path\n";
-    cout << "  tree               - Show visual tree diagram (static)\n";
-    cout << "  livetree           - Enable/disable live updating tree\n";
+    cout << "  tree               - Show visual tree diagram (graphical UI)\n";
     cout << "  report             - Show system statistics\n";
     cout << "  mode               - Switch mode\n";
     cout << "  exit               - Quit program\n\n";
@@ -67,11 +67,11 @@ void printCLILearningMenu() {
     cout << "  9. Find a file\n";
     cout << " 10. Show file details\n";
     cout << " 11. Show current location\n";
-    cout << " 12. Show visual tree diagram (static)\n";
-    cout << " 13. Enable/disable live updating tree\n";
+    cout << " 12. Show visual tree diagram\n";
+    cout << " 13. Open GUI tree view (browser)\n";
     cout << " 14. Show statistics\n";
-    cout << " 15. Switch to normal mode\n";
-    cout << " 16. Exit\n\n";
+    cout << " 14. Switch to normal mode\n";
+    cout << " 15. Exit\n\n";
 }
 
 /**
@@ -142,12 +142,8 @@ void normalMode(FileSystem& fs) {
         else if(cmd == "tree") {
             fs.displayTree();
         }
-        else if(cmd == "livetree") {
-            if(fs.isLiveTreeEnabled()) {
-                fs.disableLiveTree();
-            } else {
-                fs.enableLiveTree();
-            }
+        else if(cmd == "gui") {
+            fs.openTreeGUI();
         }
         else if(cmd == "report") {
             fs.displayStats();
@@ -260,22 +256,19 @@ void cliLearningMode(FileSystem& fs) {
             fs.displayTree();
         }
         else if(choice == "13") {
-            if(fs.isLiveTreeEnabled()) {
-                fs.disableLiveTree();
-            } else {
-                fs.enableLiveTree();
-            }
+            cout << "\n--- Opening GUI Tree View ---\n";
+            fs.openTreeGUI();
         }
         else if(choice == "14") {
             cout << "\n--- Unix Command: info ---\n";
             cout << "$ info\n";
             fs.displayStats();
         }
-        else if(choice == "15") {
+        else if(choice == "14") {
             cout << "Switching to Normal Mode...\n";
             return;
         }
-        else if(choice == "16") {
+        else if(choice == "15") {
             cout << "Goodbye!\n";
             exit(0);
         }
@@ -307,8 +300,7 @@ void fullCLIMode(FileSystem& fs) {
     cout << "  find [name]        - Search for file\n";
     cout << "  stat [name]        - Show file details\n";
     cout << "  pwd                - Show current path\n";
-    cout << "  tree               - Show visual tree diagram (static)\n";
-    cout << "  livetree           - Enable/disable live updating tree\n";
+    cout << "  tree               - Show visual tree diagram (graphical UI)\n";
     cout << "  info               - Show statistics\n";
     cout << "  mode               - Switch mode\n";
     cout << "  exit               - Quit\n\n";
@@ -373,12 +365,8 @@ void fullCLIMode(FileSystem& fs) {
         else if(cmd == "tree") {
             fs.displayTree();
         }
-        else if(cmd == "livetree") {
-            if(fs.isLiveTreeEnabled()) {
-                fs.disableLiveTree();
-            } else {
-                fs.enableLiveTree();
-            }
+        else if(cmd == "gui") {
+            fs.openTreeGUI();
         }
         else if(cmd == "info") {
             fs.displayStats();
@@ -430,6 +418,11 @@ int main() {
             fullCLIMode(fs);
         }
         else if(choice == 4) {
+            fs.openTreeGUI();
+            cout << "\nPress Enter to return to menu...";
+            cin.ignore();
+        }
+        else if(choice == 5) {
             cout << "Goodbye!\n";
             break;
         }

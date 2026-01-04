@@ -12,6 +12,8 @@
 #include <string>
 #include <ctime>
 #include <algorithm>
+#include <fstream>
+#include <cstdlib>
 
 using namespace std;
 
@@ -327,6 +329,78 @@ public:
         cout << "\n";
     }
 
+    /**
+     * @brief Displays a visual tree diagram of the entire file system
+     * 
+     * Shows the hierarchical structure with a graphical UI including:
+     * - ANSI color codes for directories (blue) and files (white/green)
+     * - Box drawing characters for tree structure
+     * - Current directory highlighting
+     * - File size information
+     */
+    void displayTree() {
+        cout << "\n";
+        cout << "============================================================\n";
+        cout << "           FILE SYSTEM TREE STRUCTURE\n";
+        cout << "============================================================\n";
+        cout << "Current Path: " << getCurrentPath() << "\n";
+        cout << "============================================================\n";
+        vector<bool> isLast;
+        printTreeHelper(root, "", isLast, true);
+        cout << "============================================================\n";
+        cout << "\n";
+    }
+
+    /**
+     * @brief Opens a GUI window showing the file system tree
+     * 
+     * Creates an HTML file with the tree structure and opens it in the browser
+     */
+    void openTreeGUI() {
+        string filename = "/tmp/filesystem_tree.html";
+        ofstream htmlFile(filename);
+        
+        if(!htmlFile.is_open()) {
+            cout << "Error: Could not create HTML file\n";
+            return;
+        }
+
+        // Write HTML header
+        htmlFile << "<!DOCTYPE html>\n";
+        htmlFile << "<html>\n<head>\n";
+        htmlFile << "<title>File System Tree</title>\n";
+        htmlFile << "<style>\n";
+        htmlFile << "body { font-family: 'Courier New', monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }\n";
+        htmlFile << ".container { max-width: 900px; margin: 0 auto; background: #252526; padding: 20px; border-radius: 8px; }\n";
+        htmlFile << "h1 { color: #4ec9b0; margin-bottom: 10px; }\n";
+        htmlFile << ".current-path { color: #dcdcaa; margin-bottom: 20px; font-size: 14px; }\n";
+        htmlFile << ".tree { font-size: 14px; line-height: 1.6; }\n";
+        htmlFile << ".folder { color: #4ec9b0; font-weight: bold; }\n";
+        htmlFile << ".file { color: #ce9178; }\n";
+        htmlFile << ".current { background: #264f78; padding: 2px 4px; border-radius: 3px; }\n";
+        htmlFile << ".size { color: #858585; font-size: 12px; }\n";
+        htmlFile << ".tree-line { color: #569cd6; }\n";
+        htmlFile << "</style>\n</head>\n<body>\n";
+        htmlFile << "<div class=\"container\">\n";
+        htmlFile << "<h1>File System Tree Structure</h1>\n";
+        htmlFile << "<div class=\"current-path\">Current: " << getCurrentPath() << "</div>\n";
+        htmlFile << "<div class=\"tree\">\n";
+
+        // Generate tree HTML
+        generateTreeHTML(root, "", htmlFile, true);
+
+        htmlFile << "</div>\n";
+        htmlFile << "</div>\n";
+        htmlFile << "</body>\n</html>\n";
+        htmlFile.close();
+
+        // Open in browser (macOS command)
+        string command = "open " + filename;
+        system(command.c_str());
+        
+        cout << "✓ Tree view opened in browser\n";
+    }
+
 private:
     /**
      * @brief Recursive helper function for file search
@@ -371,6 +445,175 @@ private:
      */
     string getFullPath(string fileName) {
         return getCurrentPath() + "/" + fileName;
+    }
+
+    /**
+     * @brief ANSI color code helper - resets formatting
+     */
+    string resetColor() {
+        return "\033[0m";
+    }
+
+    /**
+     * @brief ANSI color code helper - blue for directories
+     */
+    string dirColor() {
+        return "\033[1;34m"; // Bold blue
+    }
+
+    /**
+     * @brief ANSI color code helper - green for files
+     */
+    string fileColor() {
+        return "\033[1;32m"; // Bold green
+    }
+
+    /**
+     * @brief ANSI color code helper - yellow for current directory
+     */
+    string currentDirColor() {
+        return "\033[1;33m"; // Bold yellow
+    }
+
+    /**
+     * @brief ANSI color code helper - cyan for tree connectors
+     */
+    string treeColor() {
+        return "\033[0;36m"; // Cyan
+    }
+
+    /**
+     * @brief Recursive helper function to print tree structure with graphical formatting
+     * @param node Current node to print
+     * @param prefix Prefix string for tree formatting (indentation and connectors)
+     * @param isLast Vector tracking which ancestors are last children
+     * @param isRoot True if this is the root node
+     */
+    void printTreeHelper(FileNode* node, string prefix, vector<bool>& isLast, bool isRoot) {
+        if(!node) return;
+
+        // Determine connector and tree structure
+        string connector = "";
+        string colorConnector = treeColor();
+        if(!isRoot) {
+            if(isLast.back()) {
+                connector = "+-- ";
+            } else {
+                connector = "+-- ";
+            }
+        }
+
+        // Print prefix and connector with color
+        cout << prefix << colorConnector << connector << resetColor();
+
+        // Determine colors based on node type and current directory
+        bool isCurrent = (node == currentDir);
+        string nameColor = "";
+        string icon = "";
+
+        if(node->isDirectory) {
+            nameColor = isCurrent ? currentDirColor() : dirColor();
+            icon = "[DIR] ";
+        } else {
+            nameColor = fileColor();
+            icon = "[FILE] ";
+        }
+
+        // Print node name with icon and color
+        cout << nameColor << icon << node->name;
+        
+        // Add indicator for current directory
+        if(isCurrent) {
+            cout << " *";
+        }
+        cout << resetColor();
+
+        // Show file size if it's a non-empty file
+        if(!node->isDirectory && !node->content.empty()) {
+            cout << " " << treeColor() << "(" << node->content.length() << " bytes)" << resetColor();
+        }
+        cout << resetColor() << "\n";
+
+        // If this is a directory with children, recurse
+        if(node->isDirectory && !node->children.empty()) {
+            // Sort children: directories first, then files, both alphabetically
+            vector<FileNode*> sorted = node->children;
+            sort(sorted.begin(), sorted.end(),
+                 [](FileNode* a, FileNode* b) {
+                     if(a->isDirectory != b->isDirectory) {
+                         return a->isDirectory > b->isDirectory; // Directories first
+                     }
+                     return a->name < b->name;
+                 });
+
+            // Update prefix for children with proper tree connectors
+            string newPrefix = prefix;
+            if(!isRoot) {
+                if(isLast.back()) {
+                    newPrefix += "    ";  // Space for last child
+                } else {
+                    newPrefix += treeColor() + "|   " + resetColor();  // Vertical line for non-last
+                }
+            }
+
+            // Recursively print children
+            for(size_t i = 0; i < sorted.size(); i++) {
+                isLast.push_back(i == sorted.size() - 1);
+                printTreeHelper(sorted[i], newPrefix, isLast, false);
+                isLast.pop_back();
+            }
+        }
+    }
+
+    /**
+     * @brief Helper function to generate HTML for tree structure
+     * @param node Current node
+     * @param prefix HTML prefix for indentation
+     * @param htmlFile Output file stream
+     * @param isRoot True if root node
+     */
+    void generateTreeHTML(FileNode* node, string prefix, ofstream& htmlFile, bool isRoot) {
+        if(!node) return;
+
+        string connector = "";
+        if(!isRoot) {
+            connector = "+-- ";
+        }
+
+        htmlFile << prefix << "<span class=\"tree-line\">" << connector << "</span>";
+
+        bool isCurrent = (node == currentDir);
+        string className = node->isDirectory ? "folder" : "file";
+        string icon = node->isDirectory ? "[DIR] " : "[FILE] ";
+
+        if(isCurrent) {
+            htmlFile << "<span class=\"" << className << " current\">" << icon << node->name << " *</span>";
+        } else {
+            htmlFile << "<span class=\"" << className << "\">" << icon << node->name << "</span>";
+        }
+
+        if(!node->isDirectory && !node->content.empty()) {
+            htmlFile << " <span class=\"size\">(" << node->content.length() << " bytes)</span>";
+        }
+
+        htmlFile << "<br>\n";
+
+        if(node->isDirectory && !node->children.empty()) {
+            vector<FileNode*> sorted = node->children;
+            sort(sorted.begin(), sorted.end(),
+                 [](FileNode* a, FileNode* b) {
+                     if(a->isDirectory != b->isDirectory) {
+                         return a->isDirectory > b->isDirectory;
+                     }
+                     return a->name < b->name;
+                 });
+
+            string newPrefix = prefix + (isRoot ? "" : "&nbsp;&nbsp;&nbsp;&nbsp;");
+
+            for(auto child : sorted) {
+                generateTreeHTML(child, newPrefix, htmlFile, false);
+            }
+        }
     }
 
 public:
