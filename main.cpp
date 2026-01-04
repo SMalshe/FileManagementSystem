@@ -1,10 +1,18 @@
+/**
+ * @file main.cpp
+ * @brief Main entry point for file management system with multiple interaction modes
+ */
+
 #include <iostream>
 #include <string>
 #include "FileSystem.h"
 
 using namespace std;
 
-void printMainMenu() { //First thing user sees
+/**
+ * @brief Displays the main menu for mode selection
+ */
+void printMainMenu() {
     cout << "\n============================================\n";
     cout << "           FILE MANAGEMENT SYSTEM\n";
     cout << "============================================\n";
@@ -15,7 +23,10 @@ void printMainMenu() { //First thing user sees
     cout << "  4. Exit\n\n";
 }
 
-void printCommandMenu() { // Intuitive Mode
+/**
+ * @brief Displays available commands for Intuitive Mode
+ */
+void printCommandMenu() {
     cout << "============================================\n";
     cout << "              INTUITIVE MODE\n";
     cout << "============================================\n";
@@ -30,12 +41,17 @@ void printCommandMenu() { // Intuitive Mode
     cout << "  findfile [name]    - Search for file by name\n";
     cout << "  details [name]     - Show file details\n";
     cout << "  where              - Show current directory path\n";
+    cout << "  tree               - Show visual tree diagram (static)\n";
+    cout << "  livetree           - Enable/disable live updating tree\n";
     cout << "  report             - Show system statistics\n";
     cout << "  mode               - Switch mode\n";
     cout << "  exit               - Quit program\n\n";
 }
 
-void printCLILearningMenu() { // Learn Actual Commands
+/**
+ * @brief Displays menu for CLI Learning Mode
+ */
+void printCLILearningMenu() {
     cout << "\n============================================\n";
     cout << "              CLI LEARNING MODE\n";
     cout << "============================================\n\n";
@@ -51,17 +67,19 @@ void printCLILearningMenu() { // Learn Actual Commands
     cout << "  9. Find a file\n";
     cout << " 10. Show file details\n";
     cout << " 11. Show current location\n";
-    cout << " 12. Show statistics\n";
-    cout << " 13. Switch to normal mode\n";
-    cout << " 14. Exit\n\n";
+    cout << " 12. Show visual tree diagram (static)\n";
+    cout << " 13. Enable/disable live updating tree\n";
+    cout << " 14. Show statistics\n";
+    cout << " 15. Switch to normal mode\n";
+    cout << " 16. Exit\n\n";
 }
 
-/*
-Intuitive mode with easy commands and prompts
-@param fs Reference to the FileSystem object
-*/
+/**
+ * @brief Implements Intuitive Mode with simplified command interface
+ * @param fs Reference to the FileSystem instance
+ */
 void normalMode(FileSystem& fs) {
-    string command, arg1, arg2; // 
+    string command, arg1, arg2;
     printCommandMenu();
 
     while(true) {
@@ -121,6 +139,16 @@ void normalMode(FileSystem& fs) {
         else if(cmd == "where") {
             cout << fs.getCurrentPath() << "\n";
         }
+        else if(cmd == "tree") {
+            fs.displayTree();
+        }
+        else if(cmd == "livetree") {
+            if(fs.isLiveTreeEnabled()) {
+                fs.disableLiveTree();
+            } else {
+                fs.enableLiveTree();
+            }
+        }
         else if(cmd == "report") {
             fs.displayStats();
         }
@@ -137,6 +165,10 @@ void normalMode(FileSystem& fs) {
     }
 }
 
+/**
+ * @brief Implements CLI Learning Mode with numbered menu and Unix command references
+ * @param fs Reference to the FileSystem instance
+ */
 void cliLearningMode(FileSystem& fs) {
     string choice;
     string arg;
@@ -224,15 +256,26 @@ void cliLearningMode(FileSystem& fs) {
             cout << fs.getCurrentPath() << "\n";
         }
         else if(choice == "12") {
+            cout << "\n--- Visual Tree Diagram ---\n";
+            fs.displayTree();
+        }
+        else if(choice == "13") {
+            if(fs.isLiveTreeEnabled()) {
+                fs.disableLiveTree();
+            } else {
+                fs.enableLiveTree();
+            }
+        }
+        else if(choice == "14") {
             cout << "\n--- Unix Command: info ---\n";
             cout << "$ info\n";
             fs.displayStats();
         }
-        else if(choice == "13") {
+        else if(choice == "15") {
             cout << "Switching to Normal Mode...\n";
             return;
         }
-        else if(choice == "14") {
+        else if(choice == "16") {
             cout << "Goodbye!\n";
             exit(0);
         }
@@ -242,6 +285,10 @@ void cliLearningMode(FileSystem& fs) {
     }
 }
 
+/**
+ * @brief Implements Full CLI Mode with Unix-like command interface
+ * @param fs Reference to the FileSystem instance
+ */
 void fullCLIMode(FileSystem& fs) {
     string command, arg1, arg2;
 
@@ -260,6 +307,8 @@ void fullCLIMode(FileSystem& fs) {
     cout << "  find [name]        - Search for file\n";
     cout << "  stat [name]        - Show file details\n";
     cout << "  pwd                - Show current path\n";
+    cout << "  tree               - Show visual tree diagram (static)\n";
+    cout << "  livetree           - Enable/disable live updating tree\n";
     cout << "  info               - Show statistics\n";
     cout << "  mode               - Switch mode\n";
     cout << "  exit               - Quit\n\n";
@@ -321,6 +370,16 @@ void fullCLIMode(FileSystem& fs) {
         else if(cmd == "pwd") {
             cout << fs.getCurrentPath() << "\n";
         }
+        else if(cmd == "tree") {
+            fs.displayTree();
+        }
+        else if(cmd == "livetree") {
+            if(fs.isLiveTreeEnabled()) {
+                fs.disableLiveTree();
+            } else {
+                fs.enableLiveTree();
+            }
+        }
         else if(cmd == "info") {
             fs.displayStats();
         }
@@ -343,6 +402,10 @@ void fullCLIMode(FileSystem& fs) {
     }
 }
 
+/**
+ * @brief Main entry point
+ * @return 0 on successful execution
+ */
 int main() {
     FileSystem fs;
     int choice;

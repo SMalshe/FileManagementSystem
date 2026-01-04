@@ -1,3 +1,8 @@
+/**
+ * @file FileSystem.h
+ * @brief In-memory file system implementation using tree structure
+ */
+
 #ifndef FILESYSTEM_H
 #define FILESYSTEM_H
 
@@ -10,22 +15,37 @@
 
 using namespace std;
 
-// Represents a file or directory in the system
+/**
+ * @struct FileNode
+ * @brief Represents a file or directory node in the file system tree
+ * 
+ * Each node stores its name, type (file/directory), content (for files),
+ * timestamps, parent pointer, and children (for directories).
+ */
 struct FileNode {
-    string name;
-    bool isDirectory;
-    string content;
-    time_t createdTime;
-    time_t modifiedTime;
-    FileNode* parent;
-    vector<FileNode*> children;  // For directories
+    string name;                    // Name of the file or directory
+    bool isDirectory;               // True for directories, false for files
+    string content;                 // File contents (empty for directories)
+    time_t createdTime;             // Creation timestamp
+    time_t modifiedTime;            // Last modification timestamp
+    FileNode* parent;               // Pointer to parent directory (nullptr for root)
+    vector<FileNode*> children;     // Child nodes (used only for directories)
 
+    /**
+     * @brief Constructs a new file or directory node
+     * @param n Name of the file/directory
+     * @param isDir True if directory, false if file
+     * @param p Pointer to parent directory (nullptr for root)
+     */
     FileNode(string n, bool isDir, FileNode* p = nullptr)
         : name(n), isDirectory(isDir), content(""), parent(p) {
         createdTime = time(0);
         modifiedTime = time(0);
     }
 
+    /**
+     * @brief Destructor that recursively deletes all children
+     */
     ~FileNode() {
         for(auto child : children) {
             delete child;
@@ -33,22 +53,36 @@ struct FileNode {
     }
 };
 
+/**
+ * @class FileSystem
+ * @brief Manages the file system tree structure and operations
+ * 
+ * Maintains a root directory, current working directory, and hash map
+ * index for O(1) file lookups by path.
+ */
 class FileSystem {
 private:
-    FileNode* root;
-    FileNode* currentDir;
-    unordered_map<string, FileNode*> fileIndex;  
+    FileNode* root;                              // Root directory node
+    FileNode* currentDir;                        // Current working directory
+    unordered_map<string, FileNode*> fileIndex;  // Path to FileNode mapping for fast lookup
 
 public:
+    /**
+     * @brief Initializes file system with empty root directory
+     */
     FileSystem() {
         root = new FileNode("root", true);
         currentDir = root;
         fileIndex["root"] = root;
     }
 
-    // Create a new file
+    /**
+     * @brief Creates a new file in the current directory
+     * @param fileName Name of the file to create
+     * @param content Optional initial content (default empty)
+     * @return true on success, false if file already exists
+     */
     bool createFile(string fileName, string content = "") {
-        // Check if file already exists (O(1) with hash table)
         string fullPath = getFullPath(fileName);
         if(fileIndex.find(fullPath) != fileIndex.end()) {
             cout << "Error: File already exists\n";
@@ -63,7 +97,11 @@ public:
         return true;
     }
 
-    // Create a new directory
+    /**
+     * @brief Creates a new directory in the current directory
+     * @param dirName Name of the directory to create
+     * @return true on success, false if directory already exists
+     */
     bool createDirectory(string dirName) {
         string fullPath = getFullPath(dirName);
         if(fileIndex.find(fullPath) != fileIndex.end()) {
@@ -78,7 +116,11 @@ public:
         return true;
     }
 
-    // Change directory
+    /**
+     * @brief Changes current working directory
+     * @param dirName Target directory name, ".." for parent, or "/" for root
+     * @return true on success, false if directory not found
+     */
     bool changeDirectory(string dirName) {
         if(dirName == "..") {
             if(currentDir->parent) {
@@ -109,13 +151,17 @@ public:
         return false;
     }
 
-    // List files and directories (using vector traversal)
+    /**
+     * @brief Lists all files and directories in current directory
+     * 
+     * Displays formatted list with [DIR] and [FILE] prefixes, sorted
+     * alphabetically. Shows file sizes for non-empty files
+     */
     void listDirectory() {
         cout << "\n--- Directory: " << getCurrentPath() << " ---\n";
         cout << "[DIR]  ..\n";
         cout << "[DIR]  .\n";
 
-        // Sort children alphabetically
         vector<FileNode*> sorted = currentDir->children;
         sort(sorted.begin(), sorted.end(),
              [](FileNode* a, FileNode* b) { return a->name < b->name; });
@@ -135,7 +181,12 @@ public:
         cout << "\n";
     }
 
-    // Write content to file
+    /**
+     * @brief Writes content to an existing file, overwriting previous content
+     * @param fileName Name of the file to write
+     * @param content Content to write
+     * @return true on success, false if file not found
+     */
     bool writeFile(string fileName, string content) {
         for(auto child : currentDir->children) {
             if(child->name == fileName && !child->isDirectory) {
@@ -150,7 +201,11 @@ public:
         return false;
     }
 
-    // Read file content
+    /**
+     * @brief Reads and displays file contents
+     * @param fileName Name of the file to read
+     * @return true on success, false if file not found
+     */
     bool readFile(string fileName) {
         for(auto child : currentDir->children) {
             if(child->name == fileName && !child->isDirectory) {
@@ -164,7 +219,11 @@ public:
         return false;
     }
 
-    // Delete file or directory
+    /**
+     * @brief Deletes a file or empty directory
+     * @param fileName Name of the file or directory to delete
+     * @return true on success, false if not found or directory not empty
+     */
     bool deleteFile(string fileName) {
         for(size_t i = 0; i < currentDir->children.size(); i++) {
             if(currentDir->children[i]->name == fileName) {
@@ -183,7 +242,14 @@ public:
         return false;
     }
 
-    // Search for file by name (uses vector linear search)
+    /**
+     * @brief Searches for files by name throughout the file system
+     * 
+     * Performs recursive search from root, using substring matching.
+     * Case-sensitive search.
+     * 
+     * @param fileName Search term to match against file names
+     */
     void searchFile(string fileName) {
         cout << "Searching for '" << fileName << "'...\n";
         vector<string> results;
@@ -199,7 +265,11 @@ public:
         cout << "\n";
     }
 
-    // Display file info
+    /**
+     * @brief Displays metadata for a file or directory
+     * @param fileName Name of the file or directory
+     * @return true on success, false if not found
+     */
     bool fileInfo(string fileName) {
         for(auto child : currentDir->children) {
             if(child->name == fileName) {
@@ -217,7 +287,10 @@ public:
         return false;
     }
 
-    // Get current working directory path
+    /**
+     * @brief Returns the full path of the current working directory
+     * @return Path string (e.g., "/root/folder/subfolder")
+     */
     string getCurrentPath() {
         string path = "";
         vector<string> pathParts;
@@ -236,7 +309,12 @@ public:
         return path;
     }
 
-    // Display file system statistics
+    /**
+     * @brief Displays file system statistics
+     * 
+     * Shows total file count, directory count, total size in bytes,
+     * and number of indexed entries.
+     */
     void displayStats() {
         int fileCount = 0, dirCount = 0, totalSize = 0;
         countStats(root, fileCount, dirCount, totalSize);
@@ -250,6 +328,13 @@ public:
     }
 
 private:
+    /**
+     * @brief Recursive helper function for file search
+     * @param node Current node to search
+     * @param target Search term
+     * @param results Vector to store matching paths
+     * @param path Current path string being built
+     */
     void searchHelper(FileNode* node, string target, vector<string>& results, string path) {
         if(node->name.find(target) != string::npos && !node->isDirectory) {
             results.push_back(path + node->name);
@@ -260,6 +345,13 @@ private:
         }
     }
 
+    /**
+     * @brief Recursively counts files, directories, and total size
+     * @param node Starting node for count
+     * @param files Reference to file counter (modified by function)
+     * @param dirs Reference to directory counter (modified by function)
+     * @param size Reference to size counter (modified by function)
+     */
     void countStats(FileNode* node, int& files, int& dirs, int& size) {
         if(node->isDirectory) {
             dirs++;
@@ -272,11 +364,19 @@ private:
         }
     }
 
+    /**
+     * @brief Constructs full path for a file in current directory
+     * @param fileName File name
+     * @return Full path string
+     */
     string getFullPath(string fileName) {
         return getCurrentPath() + "/" + fileName;
     }
 
 public:
+    /**
+     * @brief Destructor that deletes root and all descendants
+     */
     ~FileSystem() {
         delete root;
     }
