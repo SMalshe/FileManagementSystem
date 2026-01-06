@@ -8,10 +8,44 @@
 #include <vector>     // for dynamic arrays
 #include <string>     // for string type
 #include <ctime>      // for timestamps
-#include <fstream>    // for writing HTML file
-#include <cstdlib>    // for system() to open browser
+#include <stdexcept>  // for exceptions
 
 using namespace std;  // so we don't have to type std:: everywhere
+
+// Custom exception for file not found errors
+class FileNotFoundException : public runtime_error {
+public:
+    FileNotFoundException(string name)
+        : runtime_error("File not found: " + name) {}
+};
+
+// Custom exception for directory not found errors
+class DirectoryNotFoundException : public runtime_error {
+public:
+    DirectoryNotFoundException(string name)
+        : runtime_error("Directory not found: " + name) {}
+};
+
+// Custom exception for when file/directory already exists
+class AlreadyExistsException : public runtime_error {
+public:
+    AlreadyExistsException(string name)
+        : runtime_error("Already exists: " + name) {}
+};
+
+// Custom exception for directory not empty errors
+class DirectoryNotEmptyException : public runtime_error {
+public:
+    DirectoryNotEmptyException(string name)
+        : runtime_error("Directory not empty: " + name) {}
+};
+
+// Custom exception for invalid name errors
+class InvalidNameException : public runtime_error {
+public:
+    InvalidNameException(string msg)
+        : runtime_error("Invalid name: " + msg) {}
+};
 
 // This struct represents a single file or folder in our tree
 struct FileNode {
@@ -48,6 +82,18 @@ private:
     FileNode* root;           // the top-level root folder
     FileNode* currentDir;     // which folder we're currently in
 
+    // Helper function to validate a file/folder name
+    void validateName(string name) {
+        // check if name is empty
+        if (name.length() == 0) {
+            throw InvalidNameException("name cannot be empty");
+        }
+        // check for invalid characters
+        if (name.find('/') != string::npos) {
+            throw InvalidNameException("name cannot contain /");
+        }
+    }
+
 public:
     // Constructor - sets up the file system with an empty root folder
     FileSystem() {
@@ -61,12 +107,15 @@ public:
     }
 
     // Creates a new file in the current folder
-    bool createFile(string fileName, string content = "") {
-        // first check if a file with this name already exists
+    // Throws: InvalidNameException, AlreadyExistsException
+    void createFile(string fileName, string content = "") {
+        // validate the file name
+        validateName(fileName);
+
+        // check if a file with this name already exists
         for (int i = 0; i < currentDir->children.size(); i++) {
             if (currentDir->children[i]->name == fileName) {
-                cout << "Error: File already exists\n";  // tell user it exists
-                return false;                             // return failure
+                throw AlreadyExistsException(fileName);
             }
         }
 
@@ -74,17 +123,19 @@ public:
         FileNode* newFile = new FileNode(fileName, false, currentDir);
         newFile->content = content;                // set initial content
         currentDir->children.push_back(newFile);   // add to current folder
-        cout << "File '" << fileName << "' created\n";  // confirm success
-        return true;                                     // return success
+        cout << "File '" << fileName << "' created\n";
     }
 
     // Creates a new folder in the current folder
-    bool createDirectory(string dirName) {
+    // Throws: InvalidNameException, AlreadyExistsException
+    void createDirectory(string dirName) {
+        // validate the directory name
+        validateName(dirName);
+
         // check if folder already exists
         for (int i = 0; i < currentDir->children.size(); i++) {
             if (currentDir->children[i]->name == dirName) {
-                cout << "Error: Directory already exists\n";
-                return false;
+                throw AlreadyExistsException(dirName);
             }
         }
 
@@ -92,20 +143,19 @@ public:
         FileNode* newDir = new FileNode(dirName, true, currentDir);
         currentDir->children.push_back(newDir);  // add to current folder
         cout << "Directory '" << dirName << "' created\n";
-        return true;
     }
 
     // Changes which folder we're currently in
-    bool changeDirectory(string dirName) {
+    // Throws: DirectoryNotFoundException
+    void changeDirectory(string dirName) {
         // if user types ".." go to parent folder
         if (dirName == "..") {
             if (currentDir->parent != nullptr) {  // make sure we have a parent
                 currentDir = currentDir->parent;  // move to parent
                 cout << "Changed to parent directory\n";
-                return true;
+                return;
             } else {
-                cout << "Already at root\n";  // can't go above root
-                return false;
+                throw DirectoryNotFoundException("..");
             }
         }
 
@@ -113,7 +163,7 @@ public:
         if (dirName == "/") {
             currentDir = root;
             cout << "Changed to root\n";
-            return true;
+            return;
         }
 
         // otherwise look for the folder by name
@@ -123,12 +173,12 @@ public:
             if (child->name == dirName && child->isDirectory) {
                 currentDir = child;  // move into that folder
                 cout << "Changed to directory '" << dirName << "'\n";
-                return true;
+                return;
             }
         }
 
-        cout << "Error: Directory not found\n";  // couldn't find it
-        return false;
+        // if we get here, directory was not found
+        throw DirectoryNotFoundException(dirName);
     }
 
     // Shows all files and folders in current directory
@@ -165,7 +215,8 @@ public:
     }
 
     // Writes content to an existing file
-    bool writeFile(string fileName, string content) {
+    // Throws: FileNotFoundException
+    void writeFile(string fileName, string content) {
         // search for the file in current folder
         for (int i = 0; i < currentDir->children.size(); i++) {
             FileNode* child = currentDir->children[i];
@@ -175,15 +226,16 @@ public:
                 child->modifiedTime = time(0);   // update modified time
                 cout << "File '" << fileName << "' written (";
                 cout << content.length() << " bytes)\n";
-                return true;
+                return;
             }
         }
-        cout << "Error: File not found\n";
-        return false;
+        // if we get here, file was not found
+        throw FileNotFoundException(fileName);
     }
 
     // Reads and displays a file's content
-    bool readFile(string fileName) {
+    // Throws: FileNotFoundException
+    string readFile(string fileName) {
         // search for the file
         for (int i = 0; i < currentDir->children.size(); i++) {
             FileNode* child = currentDir->children[i];
@@ -196,15 +248,16 @@ public:
                     cout << child->content;
                 }
                 cout << "\n\n";
-                return true;
+                return child->content;
             }
         }
-        cout << "Error: File not found\n";
-        return false;
+        // if we get here, file was not found
+        throw FileNotFoundException(fileName);
     }
 
     // Deletes a file or empty folder
-    bool deleteFile(string fileName) {
+    // Throws: FileNotFoundException, DirectoryNotEmptyException
+    void deleteFile(string fileName) {
         // search for the file/folder
         for (int i = 0; i < currentDir->children.size(); i++) {
             if (currentDir->children[i]->name == fileName) {
@@ -212,23 +265,23 @@ public:
 
                 // if it's a folder, make sure it's empty
                 if (toDelete->isDirectory && toDelete->children.size() > 0) {
-                    cout << "Error: Directory not empty\n";
-                    return false;
+                    throw DirectoryNotEmptyException(fileName);
                 }
 
                 delete toDelete;  // free the memory
                 // remove from the children vector
                 currentDir->children.erase(currentDir->children.begin() + i);
                 cout << "'" << fileName << "' deleted\n";
-                return true;
+                return;
             }
         }
-        cout << "Error: File/Directory not found\n";
-        return false;
+        // if we get here, file was not found
+        throw FileNotFoundException(fileName);
     }
 
     // Searches for files by name in the whole file system
-    void searchFile(string fileName) {
+    // Returns a vector of paths to matching files
+    vector<string> searchFile(string fileName) {
         cout << "Searching for '" << fileName << "'...\n";
         vector<string> results;              // store paths of found files
         searchHelper(root, fileName, results, "");  // start search from root
@@ -242,10 +295,12 @@ public:
             }
         }
         cout << "\n";
+        return results;
     }
 
     // Shows info about a file or folder
-    bool fileInfo(string fileName) {
+    // Throws: FileNotFoundException
+    void fileInfo(string fileName) {
         // search for it in current folder
         for (int i = 0; i < currentDir->children.size(); i++) {
             FileNode* child = currentDir->children[i];
@@ -264,11 +319,11 @@ public:
                 cout << "Created: " << ctime(&child->createdTime);   // ctime converts to readable format
                 cout << "Modified: " << ctime(&child->modifiedTime);
                 cout << "\n";
-                return true;
+                return;
             }
         }
-        cout << "Error: File not found\n";
-        return false;
+        // if we get here, file was not found
+        throw FileNotFoundException(fileName);
     }
 
     // Returns the current folder path as a string
@@ -311,73 +366,6 @@ public:
         cout << "\n";
     }
 
-    // Shows a visual tree of the file system
-    void displayTree() {
-        cout << "\n";
-        cout << "============================================\n";
-        cout << "       FILE SYSTEM TREE STRUCTURE\n";
-        cout << "============================================\n";
-        cout << "Current Path: " << getCurrentPath() << "\n";
-        cout << "============================================\n";
-
-        printTreeHelper(root, "", true);  // print starting from root
-
-        cout << "============================================\n";
-        cout << "\n";
-    }
-
-    // Opens a graphical tree view in the browser
-    void openTreeGUI() {
-        string filename = "/tmp/filesystem_tree.html";  // where to save HTML
-        ofstream htmlFile(filename);                     // create file for writing
-
-        // check if file opened successfully
-        if (!htmlFile.is_open()) {
-            cout << "Error: Could not create HTML file\n";
-            return;
-        }
-
-        // write the HTML code
-        htmlFile << "<!DOCTYPE html>\n";
-        htmlFile << "<html>\n<head>\n";
-        htmlFile << "<title>File System Tree</title>\n";
-
-        // write CSS styles for the page
-        htmlFile << "<style>\n";
-        htmlFile << "body { font-family: monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }\n";
-        htmlFile << ".container { max-width: 900px; margin: 0 auto; background: #252526; padding: 20px; border-radius: 8px; }\n";
-        htmlFile << "h1 { color: #4ec9b0; }\n";
-        htmlFile << ".current-path { color: #dcdcaa; margin-bottom: 20px; }\n";
-        htmlFile << ".tree { font-size: 14px; line-height: 1.6; }\n";
-        htmlFile << ".folder { color: #4ec9b0; font-weight: bold; }\n";
-        htmlFile << ".file { color: #ce9178; }\n";
-        htmlFile << ".current { background: #264f78; padding: 2px 4px; }\n";
-        htmlFile << ".size { color: #858585; font-size: 12px; }\n";
-        htmlFile << ".tree-line { color: #569cd6; }\n";
-        htmlFile << "</style>\n</head>\n<body>\n";
-
-        // write the container and title
-        htmlFile << "<div class=\"container\">\n";
-        htmlFile << "<h1>File System Tree Structure</h1>\n";
-        htmlFile << "<div class=\"current-path\">Current: " << getCurrentPath() << "</div>\n";
-        htmlFile << "<div class=\"tree\">\n";
-
-        // generate the tree HTML
-        generateTreeHTML(root, "", htmlFile, true);
-
-        // close HTML tags
-        htmlFile << "</div>\n";
-        htmlFile << "</div>\n";
-        htmlFile << "</body>\n</html>\n";
-        htmlFile.close();  // close the file
-
-        // open the file in browser (works on Mac)
-        string command = "open " + filename;
-        system(command.c_str());  // run the command
-
-        cout << "Tree view opened in browser\n";
-    }
-
 private:
     // Helper function to recursively search for files
     void searchHelper(FileNode* node, string target, vector<string>& results, string path) {
@@ -405,104 +393,6 @@ private:
         } else {
             files++;                          // count this file
             size = size + node->content.length();  // add its size
-        }
-    }
-
-    // Helper function to print the tree structure
-    void printTreeHelper(FileNode* node, string prefix, bool isLast) {
-        if (node == nullptr) return;  // safety check
-
-        // print the connector line
-        cout << prefix;
-        if (prefix.length() > 0) {
-            cout << "+-- ";
-        }
-
-        // print [DIR] or [FILE] with the name
-        if (node->isDirectory) {
-            cout << "[DIR] " << node->name;
-            // mark if this is the current directory
-            if (node == currentDir) {
-                cout << " <-- you are here";
-            }
-        } else {
-            cout << "[FILE] " << node->name;
-            // show file size if it has content
-            if (node->content.length() > 0) {
-                cout << " (" << node->content.length() << " bytes)";
-            }
-        }
-        cout << "\n";
-
-        // print all children
-        for (int i = 0; i < node->children.size(); i++) {
-            // figure out what prefix to use for children
-            string newPrefix = prefix;
-            if (prefix.length() > 0) {
-                newPrefix = newPrefix + "    ";  // indent
-            }
-
-            // check if this is the last child
-            bool lastChild = (i == node->children.size() - 1);
-            printTreeHelper(node->children[i], newPrefix, lastChild);
-        }
-    }
-
-    // Helper function to generate HTML for the tree
-    void generateTreeHTML(FileNode* node, string prefix, ofstream& htmlFile, bool isRoot) {
-        if (node == nullptr) return;  // safety check
-
-        // print connector
-        string connector = "";
-        if (!isRoot) {
-            connector = "+-- ";
-        }
-
-        htmlFile << prefix << "<span class=\"tree-line\">" << connector << "</span>";
-
-        // check if this is where we are
-        bool isCurrent = (node == currentDir);
-
-        // set class name based on type
-        string className = "";
-        string icon = "";
-        if (node->isDirectory) {
-            className = "folder";
-            icon = "[DIR] ";
-        } else {
-            className = "file";
-            icon = "[FILE] ";
-        }
-
-        // write the node with appropriate styling
-        if (isCurrent) {
-            htmlFile << "<span class=\"" << className << " current\">";
-            htmlFile << icon << node->name << " *</span>";
-        } else {
-            htmlFile << "<span class=\"" << className << "\">";
-            htmlFile << icon << node->name << "</span>";
-        }
-
-        // show file size
-        if (!node->isDirectory && node->content.length() > 0) {
-            htmlFile << " <span class=\"size\">(";
-            htmlFile << node->content.length() << " bytes)</span>";
-        }
-
-        htmlFile << "<br>\n";
-
-        // process children
-        if (node->isDirectory && node->children.size() > 0) {
-            // make new prefix with more indentation
-            string newPrefix = prefix;
-            if (!isRoot) {
-                newPrefix = newPrefix + "&nbsp;&nbsp;&nbsp;&nbsp;";  // HTML spaces
-            }
-
-            // generate HTML for each child
-            for (int i = 0; i < node->children.size(); i++) {
-                generateTreeHTML(node->children[i], newPrefix, htmlFile, false);
-            }
         }
     }
 };
