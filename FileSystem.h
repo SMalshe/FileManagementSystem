@@ -8,6 +8,7 @@
 #include <string>
 #include <ctime>
 #include <stdexcept>
+#include <unordered_map>
 
 using namespace std;
 
@@ -51,6 +52,7 @@ struct FileNode {
     time_t modifiedTime;
     FileNode* parent;
     vector<FileNode*> children;
+    unordered_map<string, FileNode*> childIndex;  // O(1) lookup by name
 
     FileNode(string n, bool isDir, FileNode* p = nullptr) {
         name = n;
@@ -65,6 +67,36 @@ struct FileNode {
         for (int i = 0; i < children.size(); i++) {
             delete children[i];
         }
+    }
+
+    // adds a child and updates the hash map index
+    void addChild(FileNode* child) {
+        children.push_back(child);
+        childIndex[child->name] = child;
+    }
+
+    // removes a child and updates the hash map index
+    void removeChild(string name) {
+        childIndex.erase(name);
+        for (int i = 0; i < children.size(); i++) {
+            if (children[i]->name == name) {
+                children.erase(children.begin() + i);
+                break;
+            }
+        }
+    }
+
+    // O(1) lookup for a child by name
+    FileNode* getChild(string name) {
+        if (childIndex.find(name) != childIndex.end()) {
+            return childIndex[name];
+        }
+        return nullptr;
+    }
+
+    // checks if a child with this name exists - O(1)
+    bool hasChild(string name) {
+        return childIndex.find(name) != childIndex.end();
     }
 };
 
@@ -97,15 +129,13 @@ public:
     void createFile(string fileName, string content = "") {
         validateName(fileName);
 
-        for (int i = 0; i < currentDir->children.size(); i++) {
-            if (currentDir->children[i]->name == fileName) {
-                throw AlreadyExistsException(fileName);
-            }
+        if (currentDir->hasChild(fileName)) {
+            throw AlreadyExistsException(fileName);
         }
 
         FileNode* newFile = new FileNode(fileName, false, currentDir);
         newFile->content = content;
-        currentDir->children.push_back(newFile);
+        currentDir->addChild(newFile);
         cout << "File '" << fileName << "' created\n";
     }
 
@@ -113,14 +143,12 @@ public:
     void createDirectory(string dirName) {
         validateName(dirName);
 
-        for (int i = 0; i < currentDir->children.size(); i++) {
-            if (currentDir->children[i]->name == dirName) {
-                throw AlreadyExistsException(dirName);
-            }
+        if (currentDir->hasChild(dirName)) {
+            throw AlreadyExistsException(dirName);
         }
 
         FileNode* newDir = new FileNode(dirName, true, currentDir);
-        currentDir->children.push_back(newDir);
+        currentDir->addChild(newDir);
         cout << "Directory '" << dirName << "' created\n";
     }
 
@@ -142,13 +170,11 @@ public:
             return;
         }
 
-        for (int i = 0; i < currentDir->children.size(); i++) {
-            FileNode* child = currentDir->children[i];
-            if (child->name == dirName && child->isDirectory) {
-                currentDir = child;
-                cout << "Changed to directory '" << dirName << "'\n";
-                return;
-            }
+        FileNode* child = currentDir->getChild(dirName);
+        if (child != nullptr && child->isDirectory) {
+            currentDir = child;
+            cout << "Changed to directory '" << dirName << "'\n";
+            return;
         }
 
         throw DirectoryNotFoundException(dirName);
@@ -185,52 +211,45 @@ public:
 
     // writes content to an existing file
     void writeFile(string fileName, string content) {
-        for (int i = 0; i < currentDir->children.size(); i++) {
-            FileNode* child = currentDir->children[i];
-            if (child->name == fileName && !child->isDirectory) {
-                child->content = content;
-                child->modifiedTime = time(0);
-                cout << "File '" << fileName << "' written (";
-                cout << content.length() << " bytes)\n";
-                return;
-            }
+        FileNode* child = currentDir->getChild(fileName);
+        if (child != nullptr && !child->isDirectory) {
+            child->content = content;
+            child->modifiedTime = time(0);
+            cout << "File '" << fileName << "' written (";
+            cout << content.length() << " bytes)\n";
+            return;
         }
         throw FileNotFoundException(fileName);
     }
 
     // reads and returns a file's content
     string readFile(string fileName) {
-        for (int i = 0; i < currentDir->children.size(); i++) {
-            FileNode* child = currentDir->children[i];
-            if (child->name == fileName && !child->isDirectory) {
-                cout << "\n--- Content of " << fileName << " ---\n";
-                if (child->content.length() == 0) {
-                    cout << "(empty)";
-                } else {
-                    cout << child->content;
-                }
-                cout << "\n\n";
-                return child->content;
+        FileNode* child = currentDir->getChild(fileName);
+        if (child != nullptr && !child->isDirectory) {
+            cout << "\n--- Content of " << fileName << " ---\n";
+            if (child->content.length() == 0) {
+                cout << "(empty)";
+            } else {
+                cout << child->content;
             }
+            cout << "\n\n";
+            return child->content;
         }
         throw FileNotFoundException(fileName);
     }
 
     // deletes a file or empty folder
     void deleteFile(string fileName) {
-        for (int i = 0; i < currentDir->children.size(); i++) {
-            if (currentDir->children[i]->name == fileName) {
-                FileNode* toDelete = currentDir->children[i];
-
-                if (toDelete->isDirectory && toDelete->children.size() > 0) {
-                    throw DirectoryNotEmptyException(fileName);
-                }
-
-                delete toDelete;
-                currentDir->children.erase(currentDir->children.begin() + i);
-                cout << "'" << fileName << "' deleted\n";
-                return;
+        FileNode* child = currentDir->getChild(fileName);
+        if (child != nullptr) {
+            if (child->isDirectory && child->children.size() > 0) {
+                throw DirectoryNotEmptyException(fileName);
             }
+
+            currentDir->removeChild(fileName);
+            delete child;
+            cout << "'" << fileName << "' deleted\n";
+            return;
         }
         throw FileNotFoundException(fileName);
     }
@@ -254,24 +273,22 @@ public:
 
     // shows info about a file or folder
     void fileInfo(string fileName) {
-        for (int i = 0; i < currentDir->children.size(); i++) {
-            FileNode* child = currentDir->children[i];
-            if (child->name == fileName) {
-                cout << "\n--- File Info ---\n";
-                cout << "Name: " << child->name << "\n";
+        FileNode* child = currentDir->getChild(fileName);
+        if (child != nullptr) {
+            cout << "\n--- File Info ---\n";
+            cout << "Name: " << child->name << "\n";
 
-                if (child->isDirectory) {
-                    cout << "Type: Directory\n";
-                } else {
-                    cout << "Type: File\n";
-                }
-
-                cout << "Size: " << child->content.length() << " bytes\n";
-                cout << "Created: " << ctime(&child->createdTime);
-                cout << "Modified: " << ctime(&child->modifiedTime);
-                cout << "\n";
-                return;
+            if (child->isDirectory) {
+                cout << "Type: Directory\n";
+            } else {
+                cout << "Type: File\n";
             }
+
+            cout << "Size: " << child->content.length() << " bytes\n";
+            cout << "Created: " << ctime(&child->createdTime);
+            cout << "Modified: " << ctime(&child->modifiedTime);
+            cout << "\n";
+            return;
         }
         throw FileNotFoundException(fileName);
     }
